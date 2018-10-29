@@ -33,9 +33,10 @@ Client.prototype.coinToWei = function(socket,coinAmt,weiAmt){
 
 
 //Similar to manager parseMessage (a TODO)
+//Message types: 
 
 Client.prototype.parseMessage = function(msg,socket){
-
+    
 }
 
 

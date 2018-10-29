@@ -13280,8 +13280,14 @@
       "links": {},
       "address": "0x254dffcd3277c0b1660f6d42efbb754edababc2b",
       "transactionHash": "0x4f2131841a25f2edcec49ae262ba4fa1a20527289f8a0caf8e0e85e61219808f"
+    },
+    "1540839462597": {
+      "events": {},
+      "links": {},
+      "address": "0x254dffcd3277c0b1660f6d42efbb754edababc2b",
+      "transactionHash": "0x4f2131841a25f2edcec49ae262ba4fa1a20527289f8a0caf8e0e85e61219808f"
     }
   },
   "schemaVersion": "2.0.1",
-  "updatedAt": "2018-10-29T00:11:08.846Z"
+  "updatedAt": "2018-10-29T18:58:18.344Z"
 }
