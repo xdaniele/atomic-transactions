@@ -1,55 +1,43 @@
 var Peer = require('../peer/peer.js');
-var web3 = undefined;
-
-Client.prototype = Object.create(Peer.prototype);
-Client.prototype.constructor = Client;
+var io = require('socket.io-client');
 
 function Client(privateKey){
-    Peer.call(this,privateKey);
+    this.peer = new Peer(privateKey);
 }
 
-Client.prototype.GenerateSecret = function(numBytes){
-    return crypto.randomBytes(numBytes);
+Client.prototype.connectToNode = function(url){
+    this.peer.ConnectToNode(url);
 }
 
-Client.prototype.CreateHashLock = function(){
-    var fs= require('fs');
-
-    let source = fs.readFileSync("../build/contracts/HashLock.json");
-    let sourceJSON = JSON.parse(source);
-    let abi = sourceJSON.abi;
-    let bin = sourceJSON.bytecode;
-
-    let HashLock = new this.web3.eth.Contract(abi);
-    options = {
-        data : bin
-    }
-    let deployed = HashLock.deploy(options).send({
-        from : this.account.address,
-        gas: 1500000
+Client.prototype.initTransaction = function(managerAddress,type,weiAmt,coinAmt){
+    socket = io.connect(managerAddress, {reconnect: true});
+    socket.on('MSG',function(message){
+        console.log(message);
     })
-    deployed
-    .then(function(newContractInstance){
-        HashLock = newContractInstance;
-        HashLock.options = newContractInstance.options;
-        console.log(HashLock.options.address);
-        //How to retrieve contract public field
-        HashLock.methods.owner().call((err,res) =>{
-            console.log(res);
-        });
-        HashLock.methods.Escrow(this.client.web3.utils.toHex("0x000000000000000000000000000010")).send({from : this.client.account.address,value: 60},(err,res) =>{
-            HashLock.methods.hash().call((err,res) =>{
-                console.log(res);
-            });
-        });
-        //console.log(this.web3);
-        
-      
-    });
-    
+    if(type == "WEI_TO_COIN"){
+        this.weiToCoin(socket,weiAmt,coinAmt);
+    }else if(type == "COIN_TO_WEI"){
+        this.coinToWei(socket,coinAmt,weiAmt);
+    }
 }
 
-//Client.prototype.QueryContract
+Client.prototype.weiToCoin = function(socket,weiAmt,coinAmt){
+    socket.emit('MSG', this.peer.account.address,{msg_type : "INIT",type: "WEI_TO_COIN",wei: weiAmt,coin: coinAmt});
+    console.log("Requested WEI_TO_COIN transaction");
+}
+
+Client.prototype.coinToWei = function(socket,coinAmt,weiAmt){
+    socket.emit('MSG', this.peer.account.address,{msg_type: "INIT",type : "COIN_TO_WEI",wei: weiAmt,coin: coinAmt});
+    console.log("Requested COIN_TO_WEI transaction");
+}
+
+
+//Similar to manager parseMessage (a TODO)
+
+Client.prototype.parseMessage = function(msg,socket){
+
+}
+
 
 
 module.exports = Client;

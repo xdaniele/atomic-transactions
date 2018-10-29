@@ -1,0 +1,15 @@
+Tasks:
+-Electron interface (need a visual representation for manager and client)
+-Securing accounts with metamask (peer)
+-Arbitrary transactions
+-Playing with alternative threat models
+-Composite HTLCs (require many secrets)
+-Making transaction details anonymous
+-Testing for HTLC and transactions
+
+Message format (right now only supports wei -> coin and coin -> wei but can generalize later):
+{
+	type : 'type', (is used in parse message methods)
+	wei : 'wei',
+	coin : 'coin',
+}

@@ -1,1 +1,0 @@
-//Might move some of the eth dependent code out of peer.js here
