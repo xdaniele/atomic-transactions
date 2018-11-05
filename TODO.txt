@@ -8,6 +8,7 @@ Tasks:
 -Testing for HTLC and transactions (3)
 -Encryption on top of chat (4)
 -Demos folder (stores different threat models) (mine)
+-Add heartbeat messages maybe?
 
 Arvind: wallet and Encryption
 Alex: tests
@@ -19,8 +20,8 @@ Message format (right now only supports wei -> coin and coin -> wei but can gene
 	coin : 'coin',
 }
 
-Omni ledger
-Quorum byztantine
+
+
 
 The protocol:
 

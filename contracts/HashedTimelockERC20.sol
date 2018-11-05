@@ -132,6 +132,7 @@ contract HashedTimelockERC20 {
         // Reject if a contract already exists with the same parameters. The
         // sender must change one of these parameters (ideally providing a
         // different _hashlock).
+        require(!haveContract(contractId),"Contract already taken!");
         if (haveContract(contractId))
             revert();
 
