@@ -1,6 +1,7 @@
 var Peer = require('../peer/peer.js');
 var io = require('socket.io-client');
 var util = require("../util/util");
+var xor = require('buffer-xor');
 
 const numSecretBytes = 48;
 
@@ -81,10 +82,9 @@ Client.prototype.poolHashes = function(msg,socket){
 
 Client.prototype.createHTLC = function(msg,socket){
     console.log("STEP 3: CREATE_HTLC");
-    hashA = msg.data.hashA;
-    hashB = msg.data.hashB;
-    hashAB = Buffer.concat([hashA,hashB],hashA.length+hashB.length);
-    newHash = this.peer.GetHash(hashAB);
+    hash = msg.data.hash;
+    newHash = this.peer.GetHash(xor(this.secret,hash));
+    console.log(`HashLock:  ${this.peer.bufferToString(newHash)}`);
     
     //TODO work on timelock details a bit later, 100 seconds by default right now
     if(msg.txType === util.TxTypeEnum.WEI_TO_COIN){

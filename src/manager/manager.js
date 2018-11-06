@@ -4,6 +4,8 @@ var io = require('socket.io')(http);
 var Peer = require("../peer/peer");
 var util = require("../util/util");
 var transaction = require("../util/transaction");
+var xor = require('buffer-xor');
+
 
 function Manager(privateKey,chatPort,tokenAddress){
     this.peer = new Peer(privateKey);
@@ -196,10 +198,8 @@ Manager.prototype.poolHashes = function(msg,socket){
     }
     if(tx.hashSecretsIn)
     {
-        hashAB = Buffer.concat([tx.hashSecrets[0],tx.hashSecrets[1]],tx.hashSecrets[0].length + tx.hashSecrets[1].length);
-        this.masterHash = this.peer.GetHash(hashAB);
-        newMsgA = util.createMsg(txId,util.MsgTypeEnum.HTLC_CREATE,tx.clientATxType,this.peer.account.address,{hashA: tx.hashSecrets[0],hashB: tx.hashSecrets[1],wei: tx.wei,coin : tx.coin});
-        newMsgB = util.createMsg(txId,util.MsgTypeEnum.HTLC_CREATE,tx.clientBTxType,this.peer.account.address,{hashA: tx.hashSecrets[0],hashB: tx.hashSecrets[1],wei : tx.wei,coin : tx.coin});
+        newMsgA = util.createMsg(txId,util.MsgTypeEnum.HTLC_CREATE,tx.clientATxType,this.peer.account.address,{hash: tx.hashSecrets[1],wei: tx.wei,coin : tx.coin});
+        newMsgB = util.createMsg(txId,util.MsgTypeEnum.HTLC_CREATE,tx.clientBTxType,this.peer.account.address,{hash: tx.hashSecrets[0],wei : tx.wei,coin : tx.coin});
         socketA = this.users.get(tx.clientA.from);
         socketB = this.users.get(tx.clientB.from);
         console.log("STEP 3: CREATE_HTLC");
@@ -230,7 +230,7 @@ Manager.prototype.verifyClientTx = function(msg,socket){
         let verified = false;
         if(tx.clientATxType === util.TxTypeEnum.WEI_TO_COIN){
             this.peer.getContract(this.masterHTLCPromise,idA).then(result =>{
-                if(this.peer.verifyContract(result,this.peer.account.address,tx.wei,this.peer.bufferToString(this.masterHash))){
+                if(this.peer.verifyContract(result,this.peer.account.address,tx.wei)){
                     console.log("WEI from A->B");
                      //ERC20 token requires approval
                      this.masterHTLCERC20Promise.then(instance =>{
@@ -258,7 +258,7 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                 console.log(err);
             })
             this.peer.getContract(this.masterHTLCERC20Promise,idB).then(result =>{
-                if(this.peer.verifyERC20Contract(result,this.peer.account.address,tx.coin,this.peer.bufferToString(this.masterHash))){
+                if(this.peer.verifyERC20Contract(result,this.peer.account.address,tx.coin)){
                     console.log("COIN from B->A");
                     contractPromise = this.peer.newERC20Contract(this.masterHTLCERC20Promise,tx.clientA.from,this.peer.bufferToString(tx.hashSecrets[1]),100,this.peer.tokenAddress,tx.coin);
                     contractPromise.then(instance =>{
@@ -275,7 +275,7 @@ Manager.prototype.verifyClientTx = function(msg,socket){
             });
         }else if(tx.clientATxType === util.TxTypeEnum.COIN_TO_WEI){
             this.peer.getContract(this.masterHTLCERC20Promise,idA).then(result =>{
-                if(this.peer.verifyERC20Contract(result,this.peer.account.address,tx.coin,this.peer.bufferToString(this.masterHash))){
+                if(this.peer.verifyERC20Contract(result,this.peer.account.address,tx.coin)){
                     console.log("COIN from A->B");
                     //ERC20 token requires approval
                     this.masterHTLCERC20Promise.then(instance =>{
@@ -303,7 +303,7 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                 console.log(err);
             })
             this.peer.getContract(this.masterHTLCPromise,idB).then(result =>{
-                if(this.peer.verifyContract(result,this.peer.account.address,tx.wei,this.peer.bufferToString(this.masterHash))){
+                if(this.peer.verifyContract(result,this.peer.account.address,tx.wei)){
                     console.log("WEI from B->A");
                     contractPromise = this.peer.newContract(this.masterHTLCPromise,tx.clientA.from,this.peer.bufferToString(tx.hashSecrets[1]),100,tx.wei);
                     contractPromise.then(instance =>{
@@ -337,25 +337,31 @@ Manager.prototype.poolSecrets = function(msg,socket){
     }
 
     if(tx.secretsIn){
-        console.log("SECRETS!");
 
-        hashA = this.peer.GetHash(tx.secrets[0]);
-        hashB = this.peer.GetHash(tx.secrets[1]);
-        hashAB = Buffer.concat([hashA,hashB],hashA.length+hashB.length);
-        newHash = this.peer.GetHash(hashAB);
+        preImageA = xor(tx.secrets[0],tx.hashSecrets[1]);      
+        preImageB = xor(tx.secrets[1],tx.hashSecrets[0]);          
 
         //Do withdraw from both contracts
-        if(this.clientATxType === util.TxTypeEnum.WEI_TO_COIN){
-            this.peer.withdraw(this.masterHTLCPromise,tx.contractIds[0],this.peer.bufferToString(tx.secrets[0]));
-            this.peer.withdrawERC20(this.masterHTLCERC20Promise,tx.contractIds[1],this.peer.bufferToString(tx.secrets[1]));
+        if(tx.clientATxType === util.TxTypeEnum.WEI_TO_COIN){
+            console.log(`Id: ${tx.contractIds[0]}`);
+            console.log(`Hash: ${this.peer.bufferToString(this.peer.GetHash(preImageA))}`);
+            this.peer.withdraw(this.masterHTLCPromise,tx.contractIds[0],this.peer.bufferToString(preImageA));
+            this.peer.withdrawERC20(this.masterHTLCERC20Promise,tx.contractIds[1],this.peer.bufferToString(preImageB));
+        }else if(tx.clientATxType === util.TxTypeEnum.COIN_TO_WEI){
+            console.log(`Id: ${tx.contractIds[0]}`);
+            console.log(`Hash: ${this.peer.bufferToString(this.peer.GetHash(preImageA))}`);
+            this.peer.withdrawERC20(this.masterHTLCERC20Promise,tx.contractIds[0],this.peer.bufferToString(preImageA));
+            this.peer.withdraw(this.masterHTLCPromise,tx.contractIds[1],this.peer.bufferToString(preImageB));
         }
 
-        //Send a message to client (client might not expect this final message)
+        //Send a message to client (ideally the client doesn't rely on this message and just queries the contract)
         msg = util.createMsg(txId,util.MsgTypeEnum.FINALIZE,null,null,null);
         socketA = this.users.get(tx.clientA.from);
         socketA.emit('MSG',msg)
-        socketB = this.users.get(tx.clientB.from,msg);
+        socketB = this.users.get(tx.clientB.from);
         socketB.emit('MSG',msg);
+      
+        console.log("Done!");
     }
 }
 

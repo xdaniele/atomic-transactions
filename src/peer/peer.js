@@ -60,6 +60,7 @@ Peer.prototype.newContract = function(masterPromise,receiver,hashlock,timelock,v
                 if(log.event === 'LogHTLCNew'){
                     contractId = log.args.contractId;
                     console.log("Created HTLC with id: "+ contractId );
+                    console.log(`Hash: ${log.args.hashlock}`);
                     resolve(contractId);
                 }
             }
@@ -86,6 +87,7 @@ Peer.prototype.newERC20Contract = function(masterPromise,receiver,hashlock,timel
                 if(log.event === 'LogHTLCERC20New'){
                     contractId = log.args.contractId;
                     console.log("Created HTLCERC20 with id: "+ contractId );
+                    console.log(`Hash: ${log.args.hashlock}`);
                     resolve(contractId);
                 }
             }
@@ -188,8 +190,8 @@ Peer.prototype.GenerateSecret = function(numBytes){
     return crypto.randomBytes(numBytes);
 }
 
-Peer.prototype.GetHash = function(str){
-    return crypto.createHash('sha256').update(str).digest();
+Peer.prototype.GetHash = function(buffer){
+    return crypto.createHash('sha256').update(buffer).digest();
 }
 
 Peer.prototype.bufferToString = function(buffer){
@@ -200,16 +202,16 @@ Peer.prototype.setTokenAddress = function(tokenAddress){
     this.tokenAddress = tokenAddress;
 }
 
-Peer.prototype.verifyContract = function(contractObj,receiver,amount,hashlock){
-    if(contractObj[1] === receiver.toLowerCase() && contractObj[2].toNumber() === amount && contractObj[3] === hashlock){
+Peer.prototype.verifyContract = function(contractObj,receiver,amount){
+    if(contractObj[1] === receiver.toLowerCase() && contractObj[2].toNumber() === amount){
         return true;
     }else{
         return false;
     }
 }
 
-Peer.prototype.verifyERC20Contract = function(contractObj,receiver,amount,hashlock){
-    if(contractObj[1] === receiver.toLowerCase() && contractObj[3].toNumber() === amount && contractObj[4] === hashlock){
+Peer.prototype.verifyERC20Contract = function(contractObj,receiver,amount){
+    if(contractObj[1] === receiver.toLowerCase() && contractObj[3].toNumber() === amount){
         return true;
     }else{
         return false;

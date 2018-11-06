@@ -12,12 +12,6 @@ var TxTypeEnum = {
     COIN_TO_WEI : 1
 }
 
-/*Data format
-data = {
-    wei: wei,
-    coin: coin
-}
-*/
 
 function createMsg(txId,msgType,txType,from,data){
     return {

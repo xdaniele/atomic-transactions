@@ -32,7 +32,7 @@ POOL_HASHES:
 M -> A,B [ready? send me h(s_A) and h(s_B) (POOL_HASHES)]
 A,B -> M [here are h(s_A) and h(s_B) (POOL_HASHES)]
 
-CREATE_HTLC_P0
+HTLC_CREATE
 M -> A,B [gives both h(s_A) and h(s_B) to A,B (CREATE_HTLC_P0)]
 A -> Create HTLC with h(h(s_A) || h(s_B))
 B -> Create HTLC with h(h(s_A) || h(s_B))
