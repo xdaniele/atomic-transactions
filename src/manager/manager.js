@@ -5,6 +5,8 @@ var Peer = require("../peer/peer");
 var util = require("../util/util");
 var transaction = require("../util/transaction");
 var xor = require('buffer-xor');
+var BigNumber = require('bignumber.js');
+var web3 = require('web3');
 
 
 function Manager(privateKey,chatPort,tokenAddress){
@@ -22,7 +24,7 @@ function Manager(privateKey,chatPort,tokenAddress){
        });
 
      });
-     
+
      http.listen(chatPort, function () {
        console.log(`listening on *:${chatPort}`);
      });
@@ -92,7 +94,7 @@ Manager.prototype.parseMessage = function(msg,socket){
         case util.MsgTypeEnum.INIT:
             this.initTransaction(msg,socket);
             break;
-        
+
         case util.MsgTypeEnum.POOL_HASHES:
             this.poolHashes(msg,socket);
             break;
@@ -100,7 +102,7 @@ Manager.prototype.parseMessage = function(msg,socket){
         case util.MsgTypeEnum.HTLC_CREATE:
             this.verifyClientTx(msg,socket);
             break;
-        
+
         case util.MsgTypeEnum.POOL_SECRETS:
             this.poolSecrets(msg,socket);
             break;
@@ -130,7 +132,7 @@ Manager.prototype.initTransaction = function(msg,socket){
         socketA.emit('MSG',msgA);
         msgB = util.createMsg(newTxIndex,util.MsgTypeEnum.POOL_HASHES,msg.txType,this.peer.account.address,null);
         socketB = this.users.get(tx.clientB.from);
-        socketB.emit('MSG',msgB);        
+        socketB.emit('MSG',msgB);
     }
 }
 
@@ -206,7 +208,7 @@ Manager.prototype.poolHashes = function(msg,socket){
         socketA.emit('MSG',newMsgA);
         socketB.emit('MSG',newMsgB);
     }
-} 
+}
 
 Manager.prototype.verifyClientTx = function(msg,socket){
     txId = msg.txId;
@@ -240,13 +242,26 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                         }).then(value =>{
                         }).catch(e =>{
                             console.log(e);
-                        })    
+                        })
                     }).catch(err =>{
                         console.log(err);
                     })
 
                     contractPromise = this.peer.newContract(this.masterHTLCPromise,tx.clientB.from,this.peer.bufferToString(tx.hashSecrets[0]),100,tx.wei);
                     contractPromise.then(instance =>{
+                        let now = Number((Date.now()/1000).toFixed(0));
+                        let expectedState = {
+                          'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+                          'receiver': web3.utils.toChecksumAddress(tx.clientB.from),
+                          'tokenAddress': null,
+                          'amount': new BigNumber(tx.wei),
+                          'hashlock': this.peer.bufferToString(tx.hashSecrets[0]),
+                          'timelock': new BigNumber(now+100),
+                          'withdrawn': false,
+                          'refunded': false,
+                          'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+                        }
+                        this.peer.testContractState(this.masterHTLCPromise, instance, expectedState);
                         msg = util.createMsg(txId,util.MsgTypeEnum.POOL_SECRETS,null,this.peer.account.address,instance);
                         socket = this.users.get(tx.clientB.from);
                         socket.emit('MSG',msg);
@@ -262,6 +277,19 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                     console.log("COIN from B->A");
                     contractPromise = this.peer.newERC20Contract(this.masterHTLCERC20Promise,tx.clientA.from,this.peer.bufferToString(tx.hashSecrets[1]),100,this.peer.tokenAddress,tx.coin);
                     contractPromise.then(instance =>{
+                        let now = Number((Date.now()/1000).toFixed(0));
+                        let expectedState = {
+                          'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+                          'receiver': web3.utils.toChecksumAddress(tx.clientA.from),
+                          'tokenAddress': web3.utils.toChecksumAddress(this.peer.tokenAddress),
+                          'amount': new BigNumber(tx.coin),
+                          'hashlock': this.peer.bufferToString(tx.hashSecrets[1]),
+                          'timelock': new BigNumber(now+100),
+                          'withdrawn': false,
+                          'refunded': false,
+                          'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+                        }
+                        this.peer.testContractState(this.masterHTLCERC20Promise, instance, expectedState);
                         msg = util.createMsg(txId,util.MsgTypeEnum.POOL_SECRETS,null,this.peer.account.address,instance);
                         socket = this.users.get(tx.clientA.from);
                         socket.emit('MSG',msg);
@@ -285,8 +313,21 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                         }).then(value =>{
                             //Create outgoing contract
                             contractPromise = this.peer.newERC20Contract(this.masterHTLCERC20Promise,tx.clientB.from,this.peer.bufferToString(tx.hashSecrets[0]),100,this.peer.tokenAddress,tx.coin);
-                            contractPromise.then(id =>{
-                                msg = util.createMsg(txId,util.MsgTypeEnum.POOL_SECRETS,null,this.peer.account.address,id);
+                            contractPromise.then(instance =>{
+                                let now = Number((Date.now()/1000).toFixed(0));
+                                let expectedState = {
+                                  'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+                                  'receiver': web3.utils.toChecksumAddress(tx.clientB.from),
+                                  'tokenAddress': web3.utils.toChecksumAddress(this.peer.tokenAddress),
+                                  'amount': new BigNumber(tx.coin),
+                                  'hashlock': this.peer.bufferToString(tx.hashSecrets[0]),
+                                  'timelock': new BigNumber(now+100),
+                                  'withdrawn': false,
+                                  'refunded': false,
+                                  'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+                                }
+                                this.peer.testContractState(this.masterHTLCERC20Promise, instance, expectedState);
+                                msg = util.createMsg(txId,util.MsgTypeEnum.POOL_SECRETS,null,this.peer.account.address,instance);
                                 socket = this.users.get(tx.clientB.from);
                                 socket.emit('MSG',msg);
                             }).catch(err =>{
@@ -294,7 +335,7 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                             });
                         }).catch(e =>{
                             console.log(e);
-                        })    
+                        })
                     }).catch(err =>{
                         console.log(err);
                     });
@@ -307,6 +348,19 @@ Manager.prototype.verifyClientTx = function(msg,socket){
                     console.log("WEI from B->A");
                     contractPromise = this.peer.newContract(this.masterHTLCPromise,tx.clientA.from,this.peer.bufferToString(tx.hashSecrets[1]),100,tx.wei);
                     contractPromise.then(instance =>{
+                        let now = Number((Date.now()/1000).toFixed(0));
+                        let expectedState = {
+                          'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+                          'receiver': web3.utils.toChecksumAddress(tx.clientA.from),
+                          'tokenAddress': null,
+                          'amount': new BigNumber(tx.wei),
+                          'hashlock': this.peer.bufferToString(tx.hashSecrets[1]),
+                          'timelock': new BigNumber(now+100),
+                          'withdrawn': false,
+                          'refunded': false,
+                          'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+                        }
+                        this.peer.testContractState(this.masterHTLCPromise, instance, expectedState);
                         msg = util.createMsg(txId,util.MsgTypeEnum.POOL_SECRETS,null,this.peer.account.address,instance);
                         socket = this.users.get(tx.clientA.from);
                         socket.emit('MSG',msg);
@@ -338,8 +392,8 @@ Manager.prototype.poolSecrets = function(msg,socket){
 
     if(tx.secretsIn){
 
-        preImageA = xor(tx.secrets[0],tx.hashSecrets[1]);      
-        preImageB = xor(tx.secrets[1],tx.hashSecrets[0]);          
+        preImageA = xor(tx.secrets[0],tx.hashSecrets[1]);
+        preImageB = xor(tx.secrets[1],tx.hashSecrets[0]);
 
         //Do withdraw from both contracts
         if(tx.clientATxType === util.TxTypeEnum.WEI_TO_COIN){
@@ -360,7 +414,7 @@ Manager.prototype.poolSecrets = function(msg,socket){
         socketA.emit('MSG',msg)
         socketB = this.users.get(tx.clientB.from);
         socketB.emit('MSG',msg);
-      
+
         console.log("Done!");
     }
 }
