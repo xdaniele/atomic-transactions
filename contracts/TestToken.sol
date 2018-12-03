@@ -9,5 +9,5 @@ contract TestToken is StandardToken{
         for(uint i = 0;i < initialRecipients.length;i++){
             balances[initialRecipients[i]] = 10;
         }
-    }   
+    }
 }
