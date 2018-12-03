@@ -5,6 +5,9 @@ var contract = require('truffle-contract');
 var hashedTimelockJSON = require('../../build/contracts/HashedTimelock.json');
 var hashedTimelockERC20JSON = require('../../build/contracts/HashedTimelockERC20.json');
 var tokenTestJSON = require('../../build/contracts/TestToken.json');
+var util = require("../util/util");
+var assert = require('assert-diff');
+assert.options.strict = true;
 
 //A fix for the truffle bug that they haven't fixed... https://github.com/trufflesuite/truffle-contract/issues/56#issuecomment-331084530
 Web3.providers.HttpProvider.prototype.sendAsync = Web3.providers.HttpProvider.prototype.send;
@@ -69,7 +72,7 @@ Peer.prototype.newContract = function(masterPromise,receiver,hashlock,timelock,v
             reject(err);
         })
     });
-    
+
 }
 
 Peer.prototype.newERC20Contract = function(masterPromise,receiver,hashlock,timelock,tokenAddress,amount){
@@ -78,9 +81,9 @@ Peer.prototype.newERC20Contract = function(masterPromise,receiver,hashlock,timel
     let contractId;
 
     return new Promise((resolve,reject)=>{
-        masterPromise.then(function(instance){
+        masterPromise.then(async function(instance){
             now = Number((Date.now()/1000).toFixed(0));
-            return instance.newContract(receiver,hashlock,now+timelock,tokenAddress,amount,{from: address,gas:1000000})
+            return instance.newContract(receiver,hashlock,now+timelock,tokenAddress,amount,{from: address,gas:1000000});
         }).then(function(result){
             for(i = 0;i<result.logs.length;i++){
                 log = result.logs[i];
@@ -96,7 +99,7 @@ Peer.prototype.newERC20Contract = function(masterPromise,receiver,hashlock,timel
             reject(err);
         })
     });
-    
+
 }
 
 Peer.prototype.withdraw = function(masterPromise,contractId,preImage){
@@ -175,16 +178,13 @@ Peer.prototype.refundERC20 = function(masterPromise,contractId){
 Peer.prototype.getContract = function(masterPromise,contractId){
     let address = this.account.address;
     return new Promise((resolve,reject) =>{
-        masterPromise.then(function(instance){
-            return instance.getContract(contractId)
-        }).then(function(result){
-            resolve(result);
+        masterPromise.then(async function(instance){
+          resolve(await instance.getContract(contractId));
         }).catch(function(err){
-            reject(err);
+          reject(err);
         })
     });
 }
-
 
 Peer.prototype.GenerateSecret = function(numBytes){
     return crypto.randomBytes(numBytes);
@@ -218,6 +218,13 @@ Peer.prototype.verifyERC20Contract = function(contractObj,receiver,amount){
     }
 }
 
+Peer.prototype.testContractState = function(masterPromise,contractId,expectedState){
+  this.getContract(masterPromise,contractId).then(function(instance) {
+    let actualState = util.contractToObject(instance);
+    assert.deepEqual(actualState, expectedState, 'HTLC has unexpected state');
+    console.log("TEST PASSED!!");
+  });
+}
 
 
 

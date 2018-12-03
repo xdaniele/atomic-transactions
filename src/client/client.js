@@ -2,8 +2,10 @@ var Peer = require('../peer/peer.js');
 var io = require('socket.io-client');
 var util = require("../util/util");
 var xor = require('buffer-xor');
+var BigNumber = require('bignumber.js');
+var web3 = require('web3');
 
-const numSecretBytes = 48;
+const numSecretBytes = 32;
 
 function Client(privateKey,tokenAddress){
     this.peer = new Peer(privateKey);
@@ -22,11 +24,11 @@ Client.prototype.connectToNode = function(url){
         }).then(value =>{
         }).catch(e =>{
             console.log(e);
-        })    
+        })
     }).catch(err =>{
         console.log(err);
     })
-    
+
 }
 
 
@@ -45,7 +47,7 @@ Client.prototype.parseMessage = function(msg,socket){
         case util.MsgTypeEnum.POOL_SECRETS:
             this.poolSecrets(msg,socket);
             break;
-        
+
         case util.MsgTypeEnum.FINALIZE:
             this.finalizeTx(msg,socket);
             break;
@@ -85,11 +87,25 @@ Client.prototype.createHTLC = function(msg,socket){
     hash = msg.data.hash;
     newHash = this.peer.GetHash(xor(this.secret,hash));
     console.log(`HashLock:  ${this.peer.bufferToString(newHash)}`);
-    
+
     //TODO work on timelock details a bit later, 100 seconds by default right now
     if(msg.txType === util.TxTypeEnum.WEI_TO_COIN){
         contractPromise = this.peer.newContract(this.masterHTLCPromise,msg.from,this.peer.bufferToString(newHash),100,msg.data.wei);
         contractPromise.then(instance =>{
+            let now = Number((Date.now()/1000).toFixed(0));
+            let expectedState = {
+              'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+              'receiver': web3.utils.toChecksumAddress(msg.from),
+              'tokenAddress': null,
+              'amount': new BigNumber(msg.data.wei),
+              'hashlock': this.peer.bufferToString(newHash),
+              'timelock': new BigNumber(now+100),
+              'withdrawn': false,
+              'refunded': false,
+              'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+            }
+            this.peer.testContractState(this.masterHTLCPromise, instance, expectedState);
+            console.log("contract Id: " + instance);
             msg = util.createMsg(msg.txId,util.MsgTypeEnum.HTLC_CREATE,msg.txType,this.peer.account.address,instance);
             socket.emit('MSG',msg);
         }).catch((err) =>{
@@ -98,6 +114,20 @@ Client.prototype.createHTLC = function(msg,socket){
     }else if(msg.txType === util.TxTypeEnum.COIN_TO_WEI){
         contractPromise = this.peer.newERC20Contract(this.masterHTLCERC20Promise,msg.from,this.peer.bufferToString(newHash),100,this.peer.tokenAddress,msg.data.coin);
         contractPromise.then(instance =>{
+            let now = Number((Date.now()/1000).toFixed(0));
+            let expectedState = {
+              'sender': web3.utils.toChecksumAddress(this.peer.account.address),
+              'receiver': web3.utils.toChecksumAddress(msg.from),
+              'tokenAddress': web3.utils.toChecksumAddress(this.peer.tokenAddress),
+              'amount': new BigNumber(msg.data.coin),
+              'hashlock': this.peer.bufferToString(newHash),
+              'timelock': new BigNumber(now+100),
+              'withdrawn': false,
+              'refunded': false,
+              'preImage': '0x0000000000000000000000000000000000000000000000000000000000000000',
+            }
+            this.peer.testContractState(this.masterHTLCERC20Promise, instance, expectedState);
+            console.log("contract ID: " + instance);
             msg = util.createMsg(msg.txId,util.MsgTypeEnum.HTLC_CREATE,msg.txType,this.peer.account.address,instance);
             socket.emit('MSG',msg);
         }).catch((e) =>{
